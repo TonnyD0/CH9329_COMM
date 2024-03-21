@@ -1,15 +1,23 @@
 import serial
+import ch9329Comm
 from ch9329Comm import keyboard
 from ch9329Comm import mouse
 
-serial.ser = serial.Serial('COM4', 115200)  # 开启串口
+keyboard = ch9329Comm.keyboard.DataComm('COM3')  # 开启串口，默认115200
+
+# # 检查键盘状态
+print('CH9329 version:', keyboard.version())
+print('USB connected:', keyboard.usb_conn())
+print('Num Lock:', keyboard.num_lock())
+print('Caps Lock:', keyboard.caps_lock())
+print('Scroll Lock:', keyboard.scroll_lock())
 
 # # 键盘输出helloworld
-# dc = keyboard.DataComm()
-# dc.send_data('HHEELLLLOO')  # 按下HELLO
-# dc.release()  # 松开
-# dc.send_data('WWOORRLLDD')  # 按下WORLD
-# dc.release()  # 松开
+keyboard.type('Hello World!') # 输入Hello World!
+keyboard.send_data('Enter') # 回车换行
+keyboard.release()  # 释放按键  
+
+keyboard.close()
 
 
 # （绝对）鼠标移动到屏幕的左上100*100的位置
