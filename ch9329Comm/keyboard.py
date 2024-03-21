@@ -3,8 +3,11 @@ import time
 
 class DataComm:
     """
-    此类初始化两个字典，control_button_hex_dict和normal_button_hex_dict，它们包含键盘上控制和普通按钮的十六进制值。
-    如果你需要更多的按钮，请自行根据协议文档补充
+    此类初始化三个字典，
+    control_button_hex_dict包含键盘上控制键，
+    normal_button_hex_dict包含键盘上的普通按钮，
+    normal_char_hex_dict包含大写字母及符号，
+    如果需要更多的按钮，请自行根据协议文档补充。
     """
 
     def __init__(self, serial_com):
@@ -58,7 +61,7 @@ class DataComm:
                                      "<": ["L_SHIFT",","],
                                      ">": ["L_SHIFT","."],
                                      "?": ["L_SHIFT","/"],
-                                     " ": ["","space"]
+                                     " ": ["","Space"]
                                      }
 
         self.control_button_hex_dict = {"NULL": b'\x00',
@@ -109,11 +112,11 @@ class DataComm:
                                         "8": b"\x25",
                                         "9": b"\x26",
                                         "0": b"\x27",
-                                        "enter": b"\x28",
-                                        "esc": b"\x29",
-                                        "backspace": b"\x2A",
-                                        "tab": b"\x2B",
-                                        "space": b"\x2C",
+                                        "Enter": b"\x28",
+                                        "Esc": b"\x29",
+                                        "Backspace": b"\x2A",
+                                        "Tab": b"\x2B",
+                                        "Space": b"\x2C",
                                         "-": b"\x2D",
                                         "=": b"\x2E",
                                         "[": b"\x2F",
@@ -141,39 +144,43 @@ class DataComm:
                                         "F12": b"\x45",
                                         "PrintScr": b"\x46",
                                         "ScrollLock": b"\x47",
-                                        "Pause Break": b"\x48",
+                                        "PauseBreak": b"\x48",
                                         "Insert": b"\x49",
                                         "Home": b"\x4A",
                                         "PageUp": b"\x4B",
                                         "Delete": b"\x4C",
                                         "End": b"\x4D",
                                         "PageDown": b"\x4E",
-                                        "right": b"\x4F",
-                                        "left": b"\x50",
-                                        "down": b"\x51",
-                                        "up": b"\x52",
-                                        "numlock": b"\x53",
-                                        "pad_\\": b"\x54",
-                                        "pad_*": b"\x55",
-                                        "pad_-": b"\x56",
-                                        "pad_+": b"\x57",
-                                        "pad_enter": b"\x58",
-                                        "pad_end": b"\x59",
-                                        "pad_down": b"\x5A",
-                                        "pad_next": b"\x5B",
-                                        "pad_left": b"\x5C",
-                                        "pad_clear": b"\x5D",
-                                        "pad_right": b"\x5E",
-                                        "pad_home": b"\x5F",
-                                        "pad_up": b"\x60",
-                                        "pad_prior": b"\x61",
-                                        "pad_insert": b"\x62",
-                                        "del": b"\x63",
+                                        "Right": b"\x4F",
+                                        "Left": b"\x50",
+                                        "Down": b"\x51",
+                                        "Up": b"\x52",
+                                        "NumLock": b"\x53",
+                                        "Pad_\\": b"\x54",
+                                        "Pad_*": b"\x55",
+                                        "Pad_-": b"\x56",
+                                        "Pad_+": b"\x57",
+                                        "Pad_Enter": b"\x58",
+                                        "Pad_End": b"\x59",
+                                        "Pad_Down": b"\x5A",
+                                        "Pad_Next": b"\x5B",
+                                        "Pad_Left": b"\x5C",
+                                        "Pad_Clear": b"\x5D",
+                                        "Pad_Right": b"\x5E",
+                                        "Pad_Home": b"\x5F",
+                                        "Pad_Up": b"\x60",
+                                        "Pad_Prior": b"\x61",
+                                        "Pad_Insert": b"\x62",
+                                        "Del": b"\x63",
                                         "": b"\x64",
-                                        "pad_apps": b"\x65",
+                                        "Pad_Apps": b"\x65",
                                         "": b"\x66",
                                         "": b"\x67"
                                        }
+        
+        self.NUMLOCK = 0b0001
+        self.CAPSLOCK = 0b0010
+        self.SCROLLLOCK = 0b0100
 
 
     """
@@ -198,7 +205,6 @@ class DataComm:
             else:
                 self.send_data(strdata[i])
             self.release()
-            time.sleep(0.1)
 
  
     def send_data(self, data, ctrl='', com=serial):
@@ -248,8 +254,22 @@ class DataComm:
             print("int too big to convert")
             return False
         packet = HEAD + ADDR + CMD + LEN + DATA + bytes([SUM])  # 数据包
+#         print("sending", str(bytes.hex(packet)))
         com.ser.write(packet)  # 将命令代码写入串口
-        return True  # 如果成功，则返回True，否则引发异常
+        
+        time.sleep(0.06)
+        
+        count=com.ser.inWaiting()
+        if count>0:
+            com_input = com.ser.read(count)
+            if com_input!=b'':
+#                 print("receive", str(bytes.hex(com_input)))
+                if bytes.hex(com_input)[10:12]=='00':
+                    return True # 如果成功，则返回True，否则引发异常
+                else:
+                    return False
+
+        return False
 
     """
     释放按钮。
@@ -261,8 +281,70 @@ class DataComm:
         None
     """
 
-    def release(serial):
-        serial.send_data('')
+    def release(self):
+        self.send_data('')
+
+    def version(self):
+        return "%0.1f"%(int(self.get_info())//10000/10-2)
+
+    def usb_conn(self):
+        if int.from_bytes(bytes.fromhex(self.get_info()),byteorder='big')//0xFFFF%0xFF:
+            return True
+        else:
+            return False
+            
+    def num_lock(self):        
+        if int.from_bytes(bytes.fromhex(self.get_info()),byteorder='big')%0xFF & self.NUMLOCK:
+            return 'on'
+        else:
+            return 'off'
+
+    def caps_lock(self):        
+        if int.from_bytes(bytes.fromhex(self.get_info()),byteorder='big')%0xFF & self.CAPSLOCK:
+            return 'on'
+        else:
+            return 'off'
+
+    def scroll_lock(self):  
+        if int.from_bytes(bytes.fromhex(self.get_info()),byteorder='big')%0xFF & self.SCROLLLOCK:
+            return 'on'
+        else:
+            return 'off'
+
+    def get_info(self, com=serial):
+        HEAD = b'\x57\xAB'  # 帧头
+        ADDR = b'\x00'  # 地址
+        CMD = b'\x01'  # 命令
+        LEN = b'\x00'  # 数据长度
+        # 分离HEAD中的值，并计算和
+        HEAD_hex_list = []
+        for byte in HEAD:
+            HEAD_hex_list.append(byte)
+        HEAD_add_hex_list = sum(HEAD_hex_list)
+        #
+        try:
+            SUM = sum([HEAD_add_hex_list,
+                       int.from_bytes(ADDR, byteorder='big'),
+                       int.from_bytes(CMD, byteorder='big'),
+                       int.from_bytes(LEN, byteorder='big')]) % 256  # 校验和
+        except OverflowError:
+            print("int too big to convert")
+            return False
+        packet = HEAD + ADDR + CMD + LEN + bytes([SUM])  # 数据包
+        # print("sending", str(bytes.hex(packet)))
+        com.ser.write(packet)  # 将命令代码写入串口
+
+        time.sleep(0.01)
+        
+        count=com.ser.inWaiting()
+        if count>0:
+            com_input = com.ser.read(count)
+            if com_input!=b'': # 如果成功，则返回结果，否则引发异常
+                return bytes.hex(com_input)[10:16]
+            else:
+                return False
+        else:
+            return False
 
     def close(self,com=serial):
         com.ser.close()
