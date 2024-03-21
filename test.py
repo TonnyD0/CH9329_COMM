@@ -19,6 +19,7 @@ keyboard.release()  # 释放按键
 
 keyboard.close()
 
+serial.ser = serial.Serial('COM4', 115200)  # 开启串口
 
 # （绝对）鼠标移动到屏幕的左上100*100的位置
 
