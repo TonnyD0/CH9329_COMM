@@ -14,7 +14,8 @@ class DataComm:
         screen_height: 屏幕高度
     """
 
-    def __init__(self, screen_width=3840, screen_height=2160):
+    def __init__(self, ser, screen_width=3840, screen_height=2160, screen_scale=1):
+        self.ser = ser
         self.hex_dict = {"ST": b'\x02',
                          "NU": b"\x00",
                          "LE": b"\x01",
@@ -26,8 +27,8 @@ class DataComm:
         self.deviation = 0
         self.bias = 0
         self.type = 0
-        self.X_MAX = screen_width
-        self.Y_MAX = screen_height
+        self.X_MAX = int(screen_width * screen_scale)
+        self.Y_MAX = int(screen_height * screen_scale)
 
     """
     发送数据到串口，将鼠标光标移动到屏幕上的绝对位置。
@@ -36,13 +37,12 @@ class DataComm:
         x (int)：鼠标光标的x坐标。
         y (int)：鼠标光标的y坐标。
         ctrl (str)：按下的控制键（可选）。
-        port (serial)：要写入数据的串口（可选）。
     
     返回：
         如果成功发送数据，则返回True，否则返回False。
     """
 
-    def send_data_absolute(self, x: int, y: int, ctrl: str = '', port: serial = serial) -> bool:
+    def send_data_absolute(self, x: int, y: int, ctrl: str = '') -> bool:
         # 将字符转写为数据包
         HEAD = b'\x57\xAB'  # 帧头
         ADDR = b'\x00'  # 地址
@@ -64,6 +64,9 @@ class DataComm:
         DATA += X_Cur.to_bytes(2, byteorder='little')
         DATA += Y_Cur.to_bytes(2, byteorder='little')
 
+        # 鼠标滚轮
+        # TBD
+        
         if len(DATA) < 7:
             DATA += b'\x00' * (7 - len(DATA))
         else:
@@ -85,8 +88,21 @@ class DataComm:
             print("int too big to convert")
             return False
         packet = HEAD + ADDR + CMD + LEN + DATA + bytes([SUM])  # 数据包
-        port.ser.write(packet)  # 将命令代码写入串口
-        return True  # 如果成功，则返回True，否则引发异常
+        self.ser.write(packet)  # 将命令代码写入串口
+        
+        time.sleep(0.01)
+        
+        count=self.ser.inWaiting()
+        if count>0:
+            serial_input = self.ser.read(count)
+#             print("receive", str(bytes.hex(serial_input)))
+            if serial_input!=b'':
+                if bytes.hex(serial_input)[10:12] == '00':
+                    return True # 如果成功，则返回True，否则引发异常
+                else:
+                    return False
+        else:
+            return False  # 如果成功，则返回True，否则引发异常
 
     """
     发送相对于鼠标的数据。
@@ -95,13 +111,12 @@ class DataComm:
         x (int)：鼠标的x坐标。
         y (int)：鼠标的y坐标。
         ctrl (str)：按下的控制键。
-        port (Serial)：鼠标的串口。
     
     返回：
         bool：如果成功发送数据，则返回True，否则返回False。
     """
 
-    def send_data_relatively(self, x: int, y: int, ctrl: str = '', port: serial = serial) -> bool:
+    def send_data_relatively(self, x: int, y: int, ctrl: str = '') -> bool:
         # 将字符转写为数据包
         HEAD = b'\x57\xAB'  # 帧头
         ADDR = b'\x00'  # 地址
@@ -126,7 +141,7 @@ class DataComm:
             DATA += x.to_bytes(1, byteorder='big', signed=True)
 
         # y坐标，这里为了符合坐标系直觉，将<0改为向下，>0改为向上
-        y = - y
+        # y = - y
         if y == 0:
             DATA.append(0)
         elif y < 0:
@@ -134,6 +149,9 @@ class DataComm:
         else:
             DATA += y.to_bytes(1, byteorder='big', signed=True)
 
+        # 鼠标滚轮
+        # TBD
+        
         DATA += b'\x00' * (5 - len(DATA)) if len(DATA) < 5 else DATA[:5]
 
         # 分离HEAD中的值，并计算和
@@ -152,8 +170,22 @@ class DataComm:
             print("int too big to convert")
             return False
         packet = HEAD + ADDR + CMD + LEN + DATA + bytes([SUM])  # 数据包
-        port.ser.write(packet)  # 将命令代码写入串口
-        return True  # 如果成功，则返回True，否则引发异常
+        self.ser.write(packet)  # 将命令代码写入串口
+        
+        time.sleep(0.01)
+        
+        count=self.ser.inWaiting()
+        if count>0:
+            serial_input = self.ser.read(count)
+#             print("receive", str(bytes.hex(serial_input)))
+            if serial_input!=b'':
+                if bytes.hex(serial_input)[10:12] == '00':
+                    return True # 如果成功，则返回True，否则引发异常
+                else:
+                    return False
+        else:
+            return False  # 如果成功，则返回True，否则引发异常
+
     
     """ 
     功能：move_to_basic
@@ -165,13 +197,12 @@ class DataComm:
     - x：目标的x坐标。
     - y：目标的y坐标。
     - ctrl：鼠标移动的控制字符（默认为空字符串）。
-    - port：串口（默认为serial）。
     
     返回：
     - None
     """  
     
-    def move_to_basic(self, x: int, y: int, ctrl: str = '', port: serial = serial) -> None:
+    def move_to_basic(self, x: int, y: int, ctrl: str = '') -> None:
         coordinate = [x, y]
         number_list = int((((x ** 2) + (y ** 2)) ** 0.5))
         le = random.randint(4, 10)
@@ -212,7 +243,7 @@ class DataComm:
 
         # 定义prefix_bezier_array数组，存放差值
         for i in range(len(prefix_bezier_array)):
-            self.send_data_relatively(int(prefix_bezier_array[i][0]), int(prefix_bezier_array[i][1]), ctrl, port)
+            self.send_data_relatively(int(prefix_bezier_array[i][0]), int(prefix_bezier_array[i][1]), ctrl)
             time.sleep(0.0016)
 
     """
@@ -229,7 +260,7 @@ class DataComm:
 
     def check_difference_ratio(self, x: int, y: int) -> float:
         # 创建一个MouseDataComm类的实例
-        mouse = DataComm()
+        mouse = DataComm(self.ser)
         # 调用send_data_absolute方法将鼠标指针移动到屏幕的中心
         mouse.send_data_absolute(int(self.X_MAX / 2), int(self.Y_MAX / 2))
         # 调用move_to方法，参数为(50,50)
@@ -282,18 +313,17 @@ class DataComm:
         dest_x (int)：目标的x坐标。
         dest_y (int)：目标的y坐标。
         ctrl (str, optional)：要发送到串口的控制字符。默认为''。
-        port (serial, optional)：要使用的串口。默认为serial。
 
     返回：
         difference_ratio：鼠标指针实际移动量与目标移动量的比值（0 ~ 1）
     """
     
-    def move_to(self, dest_x: int, dest_y: int, ctrl: str = '', port: serial = serial) -> None:
+    def move_to(self, dest_x: int, dest_y: int, ctrl: str = '') -> None:
         start_x, start_y = pyautogui.position()
         correction_factor = self.get_corrector()
         corrected_x = dest_x * (1 / correction_factor)
         corrected_y = dest_y * (1 / correction_factor)
-        self.move_to_basic(int(corrected_x), int(corrected_y), ctrl, port)
+        self.move_to_basic(int(corrected_x), int(corrected_y), ctrl)
         end_x, end_y = pyautogui.position()
         distance = ((end_x - start_x) ** 2 + (end_y - start_y) ** 2) ** 0.5
         difference_ratio = distance / (((dest_x ** 2) + (dest_y ** 2)) ** 0.5)
@@ -310,7 +340,7 @@ class DataComm:
         None
     """
 
-    def click(self, port: serial = serial) -> None:
-        self.send_data_relatively(0, 0, 'LE', port)
+    def click(self) -> None:
+        self.send_data_relatively(0, 0, 'LE')
         time.sleep(random.uniform(0.1, 0.45))  # 100到450毫秒延迟
-        self.send_data_relatively(0, 0, 'NU', port)
+        self.send_data_relatively(0, 0, 'NU')
