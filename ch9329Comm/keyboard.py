@@ -10,10 +10,9 @@ class DataComm:
     如果需要更多的按钮，请自行根据协议文档补充。
     """
 
-    def __init__(self, serial_com):
-        
-        serial.ser = serial.Serial(serial_com, 115200) # 开启串口
+    def __init__(self, ser):
 
+        self.ser = ser
         self.normal_char_hex_dict = {"A": ["L_SHIFT","a"],
                                      "B": ["L_SHIFT","b"],
                                      "C": ["L_SHIFT","c"],
@@ -172,10 +171,7 @@ class DataComm:
                                         "Pad_Prior": b"\x61",
                                         "Pad_Insert": b"\x62",
                                         "Del": b"\x63",
-                                        "": b"\x64",
-                                        "Pad_Apps": b"\x65",
-                                        "": b"\x66",
-                                        "": b"\x67"
+                                        "Pad_Apps": b"\x65"
                                        }
         
         self.NUMLOCK = 0b0001
@@ -189,7 +185,7 @@ class DataComm:
     参数:
         data (str): 要发送的按键信息。
         ctrl (str): 要发送的控制键。
-        com (serial): 要发送数据的串口。
+        serial (serial): 要发送数据的串口。
     
     返回:
         bool: 如果数据成功发送，则为True，否则为False。
@@ -207,7 +203,7 @@ class DataComm:
             self.release()
 
  
-    def send_data(self, data, ctrl='', com=serial):
+    def send_data(self, data, ctrl=''):
         # 将字符转写为数据包
         HEAD = b'\x57\xAB'  # 帧头
         ADDR = b'\x00'  # 地址
@@ -255,16 +251,16 @@ class DataComm:
             return False
         packet = HEAD + ADDR + CMD + LEN + DATA + bytes([SUM])  # 数据包
 #         print("sending", str(bytes.hex(packet)))
-        com.ser.write(packet)  # 将命令代码写入串口
+        self.ser.write(packet)  # 将命令代码写入串口
         
         time.sleep(0.06)
         
-        count=com.ser.inWaiting()
+        count=self.ser.inWaiting()
         if count>0:
-            com_input = com.ser.read(count)
-            if com_input!=b'':
-#                 print("receive", str(bytes.hex(com_input)))
-                if bytes.hex(com_input)[10:12]=='00':
+            serial_input = self.ser.read(count)
+#             print("receive", str(bytes.hex(serial_input)))
+            if serial_input!=b'':
+                if bytes.hex(serial_input)[10:12]=='00':
                     return True # 如果成功，则返回True，否则引发异常
                 else:
                     return False
@@ -274,15 +270,12 @@ class DataComm:
     """
     释放按钮。
     
-    参数:
-        serial (object): 用于发送数据的串行对象。
-    
     返回:
         None
     """
 
     def release(self):
-        self.send_data('')
+        self.send_data('null')
 
     def version(self):
         return "%0.1f"%(int(self.get_info())//10000/10-2)
@@ -299,7 +292,7 @@ class DataComm:
         else:
             return 'off'
 
-    def caps_lock(self):        
+    def caps_lock(self):
         if int.from_bytes(bytes.fromhex(self.get_info()),byteorder='big')%0xFF & self.CAPSLOCK:
             return 'on'
         else:
@@ -311,7 +304,7 @@ class DataComm:
         else:
             return 'off'
 
-    def get_info(self, com=serial):
+    def get_info(self):
         HEAD = b'\x57\xAB'  # 帧头
         ADDR = b'\x00'  # 地址
         CMD = b'\x01'  # 命令
@@ -331,21 +324,20 @@ class DataComm:
             print("int too big to convert")
             return False
         packet = HEAD + ADDR + CMD + LEN + bytes([SUM])  # 数据包
-        # print("sending", str(bytes.hex(packet)))
-        com.ser.write(packet)  # 将命令代码写入串口
+#         print("sending", str(bytes.hex(packet)))
+        self.ser.write(packet)  # 将命令代码写入串口
 
         time.sleep(0.01)
         
-        count=com.ser.inWaiting()
+        count=self.ser.inWaiting()
         if count>0:
-            com_input = com.ser.read(count)
-            if com_input!=b'': # 如果成功，则返回结果，否则引发异常
-                return bytes.hex(com_input)[10:16]
+            serial_input = self.ser.read(count)
+#             print("receive", str(bytes.hex(serial_input)))
+            if serial_input!=b'': # 如果成功，则返回结果，否则引发异常
+                return bytes.hex(serial_input)[10:16]
             else:
                 return False
         else:
             return False
 
-    def close(self,com=serial):
-        com.ser.close()
         
